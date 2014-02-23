@@ -54,12 +54,12 @@
 \chapter{Purpose of the document}
 
 The goal of this manual is to write down and collect in a single place
-the main information that a person that (wants to) actively develop
-the Coq Proof Assistant should know. We hope that this document will
-make it easier for new developers to join the project and dive in. It
-would also be great if this manual could provide a place to share
-information between the developers without the inconveniences of an
-inline comment.
+the main information that a person wanting to actively develop the Coq
+Proof Assistant should know. We hope that this document will make it
+easier for new developers to join the project and dive right into the
+code base. It would also be great if this manual could provide a place
+to share information between the developers without the inconveniences
+of an inline comment.
 
 \chapter{Compilation}
 
@@ -308,8 +308,8 @@ two functions (also from \m{toplevel/vernac.ml}):
 
 \begin{lstlisting}
 parse_sentence : Pcoq.Gram.parsable * in_channel option ->
- Util.loc * Vernacexpr.vernac_expr
-val eval_expr : ?preserving:bool -> Util.loc * Vernacexpr.vernac_expr -> unit
+                   Util.loc * Vernacexpr.vernac_expr
+eval_expr : ?preserving:bool -> Util.loc * Vernacexpr.vernac_expr -> unit
 \end{lstlisting}
 
 \noindent
@@ -318,7 +318,7 @@ function (from \m{toplevel/vernacentries.ml}):
 
 \begin{lstlisting}
 (** The main interpretation function of vernacular expressions *)
-val interp : Vernacexpr.vernac_expr -> unit
+interp : Vernacexpr.vernac_expr -> unit
 \end{lstlisting}
 
 \noindent
@@ -367,12 +367,12 @@ Printf.eprintf "debug: %s\n%!" tac_str
 To start the proof editing mode, the following function (from
 \m{proofs/proof\_global.ml}) is used:
 \begin{lstlisting}
-val start_proof : Names.identifier -> 
-                  Decl_kinds.goal_kind ->
-                  (Environ.env * Term.types) list  ->
-                  ?compute_guard:lemma_possible_guards -> 
-                  Tacexpr.declaration_hook -> 
-                  unit
+start_proof : Names.identifier -> 
+              Decl_kinds.goal_kind ->
+             (Environ.env * Term.types) list  ->
+             ?compute_guard:lemma_possible_guards -> 
+              Tacexpr.declaration_hook -> 
+              unit
 \end{lstlisting}
 
 One interesting point is that the proof editing loop (the proof
@@ -385,7 +385,7 @@ are then simply delegated to proof-specific modules. To check if the
 proof-editing mode is on, we can call the following function (from
 \m{proofs/pfedit.ml}):
 \begin{lstlisting}
-val refining : unit -> bool
+refining : unit -> bool
 \end{lstlisting}
 \textbf{Warning:} tactics invoked by the user are encoded as
 the \m{VernacSolve} command constructor (the more intuitive
@@ -403,8 +403,8 @@ the \m{raw} version to the \m{glob} version either use the top-level
 To interpret (execute) tactic expressions check the
 \m{tactics/tacinterp.ml} file. The interesting functions are:
 \begin{lstlisting}
-val interp : raw_tactic_expr -> tactic
-val eval_tactic : glob_tactic_expr -> tactic
+interp : raw_tactic_expr -> tactic
+eval_tactic : glob_tactic_expr -> tactic
 \end{lstlisting}
 The interpretation of atomic tactics is split between various files in
 the \m{tactics} directory; some (e.g. \m{intro}, \m{apply}) can be
@@ -413,7 +413,7 @@ found in the \m{tactics/hiddentac.ml} file.
 Named tactic registration is done by the function (again, from
 \m{tactics/tacinterp.ml}):
 \begin{lstlisting}
-val add_tacdef :
+add_tacdef :
   Vernacexpr.locality_flag -> bool ->
   (Libnames.reference * bool * raw_tactic_expr) list -> unit
 \end{lstlisting}
@@ -422,8 +422,8 @@ The \m{parsing/pptactic.ml} file contains functions for
 pretty-printing (both raw and globalized) tactics:
 
 \begin{lstlisting}
-val pr_raw_tactic    : env -> raw_tactic_expr -> std_ppcmds
-val pr_glob_tactic : env -> glob_tactic_expr -> std_ppcmds
+pr_raw_tactic    : env -> raw_tactic_expr -> std_ppcmds
+pr_glob_tactic : env -> glob_tactic_expr -> std_ppcmds
 \end{lstlisting}
 
 \chapter{Source code organization}
@@ -671,10 +671,10 @@ goal-manipulators.
 A few example tacticals:
 
 \begin{code}
-val tclIDTAC  : tactic
-val tclREPEAT : tactic -> tactic
-val tclTRY    : tactic -> tactic
-val tclFAIL   : int -> Pp.std_ppcmds -> tactic
+tclIDTAC  : tactic
+tclREPEAT : tactic -> tactic
+tclTRY    : tactic -> tactic
+tclFAIL   : int -> Pp.std_ppcmds -> tactic
 \end{code}
 
 \subsection{Tacexpr}
@@ -723,17 +723,17 @@ Some of the operations defined in the file are for the internalization
 of the tactic expressions:
 
 \begin{code}
-val intern_pure_tactic : glob_sign -> raw_tactic_expr -> glob_tactic_expr
-val intern_constr : glob_sign -> constr_expr -> glob_constr_and_expr
+intern_pure_tactic : glob_sign -> raw_tactic_expr -> glob_tactic_expr
+intern_constr : glob_sign -> constr_expr -> glob_constr_and_expr
 
-val glob_tactic : raw_tactic_expr -> glob_tactic_expr
+glob_tactic : raw_tactic_expr -> glob_tactic_expr
 
-val add_tacdef :
+add_tacdef :
   Vernacexpr.locality_flag -> bool ->
   (Libnames.reference * bool * raw_tactic_expr) list -> unit
 
-val interp : raw_tactic_expr -> tactic
-val eval_tactic : glob_tactic_expr -> tactic
+interp : raw_tactic_expr -> tactic
+eval_tactic : glob_tactic_expr -> tactic
 \end{code}
 
 \noindent
@@ -882,12 +882,12 @@ Some of the most useful parts seem to be:
 
 \begin{code}
 type message = string
-val find_reference : message -> string list -> string -> global_reference
+find_reference : message -> string list -> string -> global_reference
 (** For tactics/commands requiring vernacular libraries *)
-val check_required_library : string list -> unit
+check_required_library : string list -> unit
 
-val logic_module : dir_path
-val logic_type_module : dir_path
+logic_module : dir_path
+logic_type_module : dir_path
 
 (* For Equality tactics *)
 type coq_sigma_data = {
@@ -897,9 +897,9 @@ type coq_sigma_data = {
   intro : constr;
   typ   : constr }
 
-val build_sigma_set : coq_sigma_data delayed
-val build_sigma_type : coq_sigma_data delayed
-val build_sigma : coq_sigma_data delayed
+build_sigma_set : coq_sigma_data delayed
+build_sigma_type : coq_sigma_data delayed
+build_sigma : coq_sigma_data delayed
 \end{code}
 
 \section{Pretyping}
