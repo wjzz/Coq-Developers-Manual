@@ -1,0 +1,1123 @@
+\documentclass[a4paper,oneside]{book}
+
+%% Simple macros
+
+\newcommand{\m}[1]{\ensuremath{\mathsf{#1}}}
+\newcommand{\hint}{\textbf{Hint}:\ }
+\newcommand{\TODO}[1]{\textbf{TODO}:\ \emph{#1}}
+%% Simple listings
+
+\usepackage{fancyvrb}
+\DefineVerbatimEnvironment{code}{Verbatim}{}
+
+%% Package for nice listings
+
+\usepackage{listings}
+
+\lstset{frame=tb,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true
+  tabsize=3
+}
+
+%% Clickable links and urls
+
+\usepackage{url}
+\usepackage[colorlinks]{hyperref}
+
+%% Title page info
+
+\author{Wojciech Jedynak}
+\date{Wroc{\l}aw, \today}
+\title{Coq Developer's Manual}
+
+%% Document start
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\part{Introduction}
+
+\chapter{Purpose of the document}
+
+The goal of this manual is to write down and collect in a single place
+the main information that a person that (wants to) actively develop
+the Coq Proof Assistant should know. We hope that this document will
+make it easier for new developers to join the project and dive in. It
+would also be great if this manual could provide a place to share
+information between the developers without the inconveniences of an
+inline comment.
+
+\chapter{Compilation}
+
+\section{Requirements}
+
+To compile Coq from sources you need to have OCaml and the basic OCaml
+toolset installed. 
+
+\section{Configuration and first compilation}
+
+To compile the tools for the first time run the following (in the main
+Coq directory):
+
+\begin{lstlisting}
+$ ./configure -local
+$ make
+\end{lstlisting}
+
+The first command will check if you have installed all of the required
+tools and dependencies. The \verb|-local| option will keep the source
+files upon installation, so that we can e.g. compile Coq plugins and
+develop Coq in general.
+
+In case of installation problems, check the \verb|INSTALL| file.
+
+\section{Recomplilation}
+
+Once you've been able to compile Coq from sources, you can tweak the
+code and then 
+\begin{lstlisting}
+$ make
+\end{lstlisting} will recompile the necessary files. Note
+that this command will proceed to recompile the standard library once
+the basic executables (e.g., \m{coqc}) are ready. \hint In many cases you
+don't really need to wait for the whole process to finish before you 
+test the new version.
+
+\chapter{Basic forms of documentation}
+
+\section{Ocamldoc documentation}
+
+Coq consists of dozens of files and modules. By issuing the
+\begin{lstlisting}
+$ make mli-doc
+\end{lstlisting}
+command, we can generate a hyperlinked module, type and value
+index. The files are created in the \m{dev/ocamldoc/html} directory.
+\TODO{We should include some of the indexes at the end of this
+  document. We could also inline the comments from all .mli files, on
+  a file-by-file basic.}
+
+\chapter{OCaml IDE configuration}
+
+\section{Merlin}
+
+In this section we show how to 
+\begin{itemize}
+\item install merlin using OPAM
+\item configure the Coq project for using merlin inside Emacs
+\item take advantage of the nice new features
+\end{itemize}
+
+The instructions have been tested under Ubuntu 13.10, OPAM 1.1.1,
+OCaml 4.01, Emacs 24.3.1. 
+
+\subsection{Installing merlin}
+
+To install merlin using OPAM run the following commands:
+\begin{lstlisting}
+opam install merlin                        # if prompted, reply 'Y'
+ocamlmerlin -version                       # test if installed OK
+\end{lstlisting}
+
+\noindent
+Next, configure Emacs by adding the following to your \m{.emacs} file:
+\begin{lstlisting}
+(setq opam-share (substring (shell-command-to-string "opam config var share") 0 -1))
+(add-to-list 'load-path (concat opam-share "/emacs/site-lisp"))
+(require 'merlin)
+(autoload 'merlin-mode "merlin" "Merlin mode" t)
+(add-hook 'tuareg-mode-hook 'merlin-mode)
+(add-hook 'caml-mode-hook 'merlin-mode)
+\end{lstlisting}
+
+Alternatively you could install merlin from sources, for this visit
+merlin's
+homepage.\footnote{\url{https://github.com/the-lambda-church/merlin}}
+
+\subsection{Project configuration}
+
+Now we need to configure our project to work with merlin.  First, we
+need to create a \m{.merlin} file in Coq's toplevel directory. I
+adapted the appropriate file from the trunk version of
+Coq.\footnote{\url{https://raw.github.com/coq/coq/trunk/.merlin}}
+
+The \m{.merlin} file for Coq 8.4pl3:
+\begin{lstlisting}
+FLG -rectypes
+
+S config
+B config
+S lib
+B lib
+S kernel
+B kernel
+S kernel/byterun
+B kernel/byterun
+S library
+B library
+S pretyping
+B pretyping
+S interp
+B interp
+S proofs
+B proofs
+S tactics
+B tactics
+S parsing
+B parsing
+S toplevel
+B toplevel
+S plugins
+B plugins
+
+PKG lablgtk2.sourceview2
+S ide
+B ide
+S ide/utils
+B ide/utils
+S tools
+B tools
+S tools/coqdoc
+B tools/coqdoc
+S dev
+B dev
+
+S checker
+B checker
+\end{lstlisting}
+
+(S is for listing source code directories, B is for binary (\m{.cmi}
+and \m{.cmt}) files.) To check if this project file is put in the
+right place, open one of the \m{.ml} files in Emacs and run
+\verb|M-x merlin-goto-project-file|.
+
+Next we need to make sure we compile OCaml files with the
+-\m{bin}-\m{annot} compiler flag, which tells the compiler to emit
+\m{.cmt} files, which contain additional information for the
+IDEs. Find the following lines in the \m{Makefile.build} configuration
+file:
+
+\begin{lstlisting}
+OCAMLC += $(CAMLFLAGS)
+OCAMLOPT += $(CAMLFLAGS)
+\end{lstlisting}
+
+and change the file so that part reads
+
+\begin{lstlisting}
+CAMLFLAGS += -bin-annot         # add this line
+OCAMLC += $(CAMLFLAGS)
+OCAMLOPT += $(CAMLFLAGS)
+\end{lstlisting}
+
+Now, recompile all of the source files (by \verb|make clean; make|).
+
+\subsection{Features}
+
+\textbf{Note}: Merlin only works on \m{.ml} files!
+
+\noindent
+Merlin integrates rather nicely with e.g. Tuareg and it provides you
+with the following features:
+
+\begin{itemize}
+\item Type-checking on save: whenever you save the current ML buffer
+  (by \verb|C-x C-s|) the file is type-checked. If everything is OK,
+  then you get an 'ok' message in the mini-buffer. Otherwise, the
+  offending lines/points become highlighted and you can navigate
+  through the error points by \verb|C-c C-x| and the mini-buffer will
+  contain the error message.
+\item Finding the definition of a function/identifier: \verb|C-c C-l|
+  will locate the symbol at point and go to its
+  definition. \verb|C-c &| will then go back to the original point.
+\item Type information: \verb|C-c C-t| on an identifier will print its
+  type in the mini-buffer. \verb|C-c t| will prompt of an expression
+  and also print its type. What is really neat, is that this command
+  will use the current context (at point)!
+\item Auto completion: this comes in two flavors: \verb|M-<tab>| and
+  \verb|C-c <tab>|. The second version requires the
+  \m{auto}-\m{complete} Emacs package and is more convenient: the
+  first version opens a list of candidate expansions in a separate
+  buffer.
+\end{itemize}
+
+To update Merlin's state run 'update' \verb|C-c C-u| or 'restart'
+\verb|C-c r|.
+
+Most of the behaviors described above can be configured or disabled,
+for details consult Merlin's github
+page.\footnote{\url{https://github.com/the-lambda-church/merlin/wiki/emacs-from-scratch}}
+
+\part{The code base: structure, concepts and conventions}
+
+\chapter{General remarks and concepts}
+
+In this chapter we provide a purpose-oriented tour of the source
+files. We begin by listing some of the core modules, which are
+imported by virtually all other modules.
+
+\section{Reading order for source files}
+
+Some files depend on as many as 20+ modules, while others are very
+often opened. 
+
+In the \m{kernel} directory, \m{names.ml} and \m{term.ml} seem to be a
+good starting point.
+
+The \m{lib/util.ml} file is used to collect any code that can be often
+used, so it's useful to have a general idea of what can be found there.
+
+Besides \m{kernel/term.ml}, \m{interp/topconstr.ml} and
+\m{pretyping/glob\_term.ml} will be often consulted, because they
+define the abstract syntax of terms at different stages.
+
+The \m{interp/coqlib.ml} file collects and builds many examples of
+global references to parts of the Coq standard library and it can be
+used as an example for reference creation.
+
+\newpage
+
+\section{Starting the system}
+
+The \m{toplevel/coqtop.mli} file contains the following function:
+
+\begin{lstlisting}
+val start : unit -> unit
+\end{lstlisting}
+
+Running it will start the \m{coqtop} interactive loop. The code for
+the loop itself can be found in \m{toplevel/toplevel.ml}. What happens
+in the loop is essentially calling \m{raw\_do\_vernac} (from
+\m{toplevel/vernac.ml}) with the user input (plus error
+handling). This function is in turn the composition of the following
+two functions (also from \m{toplevel/vernac.ml}):
+
+\begin{lstlisting}
+parse_sentence : Pcoq.Gram.parsable * in_channel option ->
+ Util.loc * Vernacexpr.vernac_expr
+val eval_expr : ?preserving:bool -> Util.loc * Vernacexpr.vernac_expr -> unit
+\end{lstlisting}
+
+\noindent
+The \m{eval\_expr} is a (yet another!) wrapper on the following
+function (from \m{toplevel/vernacentries.ml}):
+
+\begin{lstlisting}
+(** The main interpretation function of vernacular expressions *)
+val interp : Vernacexpr.vernac_expr -> unit
+\end{lstlisting}
+
+\noindent
+By inspecting the source code of the \m{interp} function you should be
+able to find your way to the module in which the given Vernacular
+command is handled.
+
+\newpage
+
+\section{Dynamic linking}
+
+The \m{toplevel/mltop.ml} seems to be concerned with the dynamic
+loading of ML modules. I'm not sure how does this work yet, but this
+module is probably used to implement the plugin mechanism.
+
+\section{Pretty printing}
+
+The \m{lib/pp.ml} file defines the basic primitives for pretty
+printing. There are also some additional modules in the \m{parsing}
+directory for pretty printing different kinds of entities:
+
+\begin{itemize}
+\item \m{parsing/pptactic.ml} for tactics
+\item \m{parsing/ppvernac.ml} for Vernacular commands:
+\end{itemize}
+
+\noindent
+\textbf{Example:} a function for pretty printing Vernacular commands:
+
+\begin{code}
+let show_pretty_vernac_expr : Vernacular.vernac_expr -> string = 
+  fun c -> Pp.string_of_ppcmds (Ppvernac.pr_vernac c)
+\end{code}
+
+\noindent
+\textbf{Example:} pretty-printing of a raw tactic:
+
+\begin{code}
+let env = Global.env () in
+let tac_str = Pp.string_of_ppcmds (Pptactic.pr_raw_tactic env tac) in
+Printf.eprintf "debug: %s\n%!" tac_str
+\end{code}
+
+\section{The proof engine and tactics}
+
+To start the proof editing mode, the following function (from
+\m{proofs/proof\_global.ml}) is used:
+\begin{lstlisting}
+val start_proof : Names.identifier -> 
+                  Decl_kinds.goal_kind ->
+                  (Environ.env * Term.types) list  ->
+                  ?compute_guard:lemma_possible_guards -> 
+                  Tacexpr.declaration_hook -> 
+                  unit
+\end{lstlisting}
+
+One interesting point is that the proof editing loop (the proof
+engine) is implemented imperatively: the current state is kept in a
+mutable variable (defined in the \m{proofs/proof\_global.ml} file). I
+think this is done because many commands can be issued at all times
+(e.g. \m{Check}), so it makes sense to have all of the commands
+handled by a single interpretation function; proof-editing commands
+are then simply delegated to proof-specific modules. To check if the
+proof-editing mode is on, we can call the following function (from
+\m{proofs/pfedit.ml}):
+\begin{lstlisting}
+val refining : unit -> bool
+\end{lstlisting}
+\textbf{Warning:} tactics invoked by the user are encoded as
+the \m{VernacSolve} command constructor (the more intuitive
+\m{VernacProof} is used for something different. \TODO{For what
+  exactly??})
+
+The abstract syntax tree of tactics can be found in
+\m{proofs/tacexpr.ml}. There are two variants: \m{raw\_tactic\_expr}
+and \m{glob\_tactic\_expr}. The first one is the direct output of the
+parser, the other one is used in the interpretation. To translate from
+the \m{raw} version to the \m{glob} version either use the top-level
+\m{glob\_tactic} or one of the more fine-grained \m{intern\_*} functions
+(both can be found in \m{tactics/tacinterp.ml}).
+
+To interpret (execute) tactic expressions check the
+\m{tactics/tacinterp.ml} file. The interesting functions are:
+\begin{lstlisting}
+val interp : raw_tactic_expr -> tactic
+val eval_tactic : glob_tactic_expr -> tactic
+\end{lstlisting}
+The interpretation of atomic tactics is split between various files in
+the \m{tactics} directory; some (e.g. \m{intro}, \m{apply}) can be
+found in the \m{tactics/hiddentac.ml} file.
+
+Named tactic registration is done by the function (again, from
+\m{tactics/tacinterp.ml}):
+\begin{lstlisting}
+val add_tacdef :
+  Vernacexpr.locality_flag -> bool ->
+  (Libnames.reference * bool * raw_tactic_expr) list -> unit
+\end{lstlisting}
+
+The \m{parsing/pptactic.ml} file contains functions for
+pretty-printing (both raw and globalized) tactics:
+
+\begin{lstlisting}
+val pr_raw_tactic    : env -> raw_tactic_expr -> std_ppcmds
+val pr_glob_tactic : env -> glob_tactic_expr -> std_ppcmds
+\end{lstlisting}
+
+\chapter{Source code organization}
+
+\section{Toplevel directories}
+
+The source code of Coq 8.4pl3 is organized into the following
+subdirectories:
+%% The toplevel directory for the Coq 8.4pl3 version contains the
+%% following subdirectories:
+\begin{lstlisting}
+bin checker config dev doc ide interp kernel lib library man parsing
+plugins pretyping proofs scripts states tactics test-suite theories
+tools toplevel
+\end{lstlisting}
+
+\noindent
+The toplevel structure can be summarized as follows: \\
+
+\begin{tabular}{|r|c|}
+\hline
+bin & target dir for executable files (e.g. \m{coqc}, \m{coqtop}) \\ \hline
+checker & \\ \hline
+config & \\ \hline
+dev & \\ \hline
+doc & \\ \hline
+ide & \\ \hline
+interp & translations between global, local and internal term representations 
+\\ \hline
+kernel & \\ \hline
+lib & various helper modules (e.g. pretty-printing, locations, etc)
+\\ \hline
+library & \\ \hline
+man & \\ \hline
+parsing & parsing and pretty-printing \\ \hline
+plugins & \\ \hline
+pretyping & \\ \hline
+proofs & the proof engine, basic tacticals \\ \hline
+scripts & \\ \hline
+states & \\ \hline
+tactics & atomic tactics and ltac expressions\\ \hline
+test-suite & \\ \hline
+theories & \\ \hline
+tools & \\ \hline
+toplevel & basic interaction with the user, vernacular command handling
+\\ \hline
+\end{tabular}
+
+We now proceed to discuss the contents of some of the directories in
+more detail.
+
+\subsection{bin}
+\subsection{checker}
+\subsection{config}
+\subsection{dev}
+\subsection{doc}
+\subsection{ide}
+\subsection{interp}
+\subsection{kernel}
+\subsection{lib}
+\subsection{library}
+\subsection{man}
+\subsection{parsing}
+\subsection{plugins}
+\subsection{pretyping}
+\subsection{proofs}
+\subsection{scripts}
+\subsection{states}
+\subsection{tactics}
+\subsection{test-suite}
+\subsection{theories}
+\subsection{tools}
+\subsection{toplevel}
+
+\chapter{Source code -- module by module}
+
+\section{Kernel}
+
+\subsection{Names}
+
+The \m{kernel/names.ml} file is concerned with the variety of names
+that are used throughout Coq's source code. Many of the name types are
+kept abstract (e.g. \m{identifier}, \m{label}, etc) and only
+conversion functions are exported (e.g. \m{string\_of\_id}).
+
+The main name types defined in the file are:
+
+\begin{code}
+type identifier
+type name = Name of identifier | Anonymous
+type variable = identifier
+
+type module_ident = identifier
+type dir_path       (* Directory paths = section names paths *)
+type label          (* Names of structure elements *)
+type mod_bound_id   (* Unique names for bound modules *)
+type module_path =
+  | MPfile of dir_path
+  | MPbound of mod_bound_id
+  | MPdot of module_path * label
+
+type kernel_name     (* The absolute names of objects seen by kernel *)
+
+type constant
+type mutual_inductive
+type inductive = mutual_inductive * int
+type constructor = inductive * int
+\end{code}
+
+\noindent
+For more details and additional comments check \m{kernel/names.mli}. \\
+
+\noindent
+\textbf{Bonus}: a function for building \textbf{constants} of form
+\m{Equations.DepElim}.\emph{name}:
+
+\begin{code}
+let build_lemma_constant : string -> constant =
+  fun lemma_name ->
+    let lemma_label = Names.mk_label lemma_name in
+    let dir_path = Names.empty_dirpath in
+    let inner_dir_path = List.map Names.id_of_string [ "DepElim" ; "Equations" ] in
+    let module_path = Names.MPfile (Names.make_dirpath inner_dir_path ) in
+    Names.make_con module_path dir_path lemma_label
+\end{code}
+Note how we have to reverse the list when constructing \m{inner\_dir\_path}.
+
+\subsection{Term}
+
+The \m{kernel/term.ml} file is concerned with the definition of the
+basic constructions of the CIC. The two most important types seem to
+be \m{sorts} and \m{constr}. The latter is the type of constructions
+and is abstract, but many constructors (in the form \m{mkABC},
+e.g. \m{mkSet}), (partial) destructors (e.g. \m{destApp}) and helper
+functions are provided (including substitution). 
+
+For cases where one would like to pattern match on constr, a
+\emph{view} \m{kind\_of\_term} is provided along with the
+destructuring function (also called \m{kind\_of\_term}).
+
+The summary of most important types is as follows:
+
+\begin{code}
+type contents = Pos | Null
+type sorts =
+  | Prop of contents       (** Prop and Set *)
+  | Type of Univ.universe  (** Type *)
+type sorts_family = InProp | InSet | InType
+
+type existential_key = int
+type metavariable = int
+
+type case_stype = ...
+type case_printing = ...
+type case_info = ...
+
+type constr
+type types = constr   (* 'type' is an ML keyword *)
+
+type existential = existential_key * constr array
+type rec_declaration = name array * types array * constr array
+type fixpoint = (int array * int) * rec_declaration
+type cofixpoint = int * rec_declaration
+
+type ('constr, 'types) kind_of_term =
+  | Rel       of int
+  | Var       of identifier
+  | Meta      of metavariable
+  | Evar      of 'constr pexistential
+  | Sort      of sorts
+  | Cast      of 'constr * cast_kind * 'types
+  | Prod      of name * 'types * 'types
+  | Lambda    of name * 'types * 'constr
+  | LetIn     of name * 'constr * 'types * 'constr
+  | App       of 'constr * 'constr array
+  | Const     of constant
+  | Ind       of inductive
+  | Construct of constructor
+  | Case      of case_info * 'constr * 'constr * 'constr array
+  | Fix       of ('constr, 'types) pfixpoint
+  | CoFix     of ('constr, 'types) pcofixpoint
+
+type ('constr, 'types) kind_of_type =
+  | SortType   of sorts
+  | CastType   of 'types * 'types
+  | ProdType   of name * 'types * 'types
+  | LetInType  of name * 'constr * 'types * 'types
+  | AtomicType of 'constr * 'constr array
+
+type named_declaration = identifier * constr option * types
+type rel_declaration = name * constr option * types
+
+type arity = rel_context * sorts
+type values
+\end{code}
+
+\newpage
+
+\section{Library}
+
+\subsection{Libnames}
+
+The \m{library/libnames.ml} file defines a few notions of qualified
+names and provides functions for manipulating them.
+
+The most important types seem to be:
+
+\begin{code}
+type global_reference =
+  | VarRef of variable
+  | ConstRef of constant
+  | IndRef of inductive
+  | ConstructRef of constructor
+
+type syndef_name = kernel_name
+type extended_global_reference =
+  | TrueGlobal of global_reference
+  | SynDef of syndef_name
+
+type full_path
+type qualid
+type object_name = full_path * kernel_name
+type object_prefix = dir_path * (module_path * dir_path)
+
+type global_dir_reference = ...
+
+type reference =
+  | Qualid of qualid located
+  | Ident of identifier located
+\end{code}
+
+\newpage
+
+\section{Proofs}
+
+\subsection{Refiner}
+
+The file \m{proofs/refiner.ml} contains a large list of primitive
+tacticals that can be composed to create larger tactics. During the
+interpretation of the Ltac tactical language (in file
+\m{tactics/tacinterp.ml}) the refiner tacticals are used once all of
+the arguments have been calculated, so in a way they are the low-level
+goal-manipulators.
+
+A few example tacticals:
+
+\begin{code}
+val tclIDTAC  : tactic
+val tclREPEAT : tactic -> tactic
+val tclTRY    : tactic -> tactic
+val tclFAIL   : int -> Pp.std_ppcmds -> tactic
+\end{code}
+
+\subsection{Tacexpr}
+
+The \m{proofs/tacexpr.ml} file contains the definitions of tactic
+(Ltac) expressions. The inductive definitions have many
+arguments. This is done so that there can be two variants of tactic
+expressions, raw expressions from parsing:
+\begin{lstlisting}
+type raw_tactic_expr =
+    (constr_expr,
+     constr_pattern_expr,
+     reference or_by_notation,
+     reference or_by_notation,
+     reference,
+     identifier located or_metaid,
+     raw_tactic_expr,
+     rlevel) gen_tactic_expr
+\end{lstlisting}
+and the expressions after some initial checks:
+\begin{lstlisting}
+type glob_tactic_expr =
+    (glob_constr_and_expr,
+     glob_constr_and_expr * constr_pattern,
+     evaluable_global_reference and_short_name or_var,
+     inductive or_var,
+     ltac_constant located or_var,
+     identifier located,
+     glob_tactic_expr,
+     glevel) gen_tactic_expr
+\end{lstlisting}
+
+The translation from the first variant to the second one is done in
+the \m{tactics/tacinterp.ml} file.
+
+\newpage
+
+\section{Tactics}
+
+\subsection{Tacinterp}
+
+The \m{tactics/tacinterp.ml} file is concerned with the interpretation
+of tactic expressions.
+
+Some of the operations defined in the file are for the internalization
+of the tactic expressions:
+
+\begin{code}
+val intern_pure_tactic : glob_sign -> raw_tactic_expr -> glob_tactic_expr
+val intern_constr : glob_sign -> constr_expr -> glob_constr_and_expr
+
+val glob_tactic : raw_tactic_expr -> glob_tactic_expr
+
+val add_tacdef :
+  Vernacexpr.locality_flag -> bool ->
+  (Libnames.reference * bool * raw_tactic_expr) list -> unit
+
+val interp : raw_tactic_expr -> tactic
+val eval_tactic : glob_tactic_expr -> tactic
+\end{code}
+
+\noindent
+The \m{intern\_} functions seem to be only used locally, inside
+\m{glob\_tactic}.
+
+The \m{add\_tacdef} function is called by the Vernacular when the user
+registers a new tactic (by \verb|Ltac foo := ...|).
+
+The \m{interp} and \m{eval\_tactic} functions are used to evaluate
+Ltac expressions. Which one is used depends on the \m{raw}/\m{glob}
+status.
+
+\newpage
+
+\section{Interp}
+
+\subsection{Topconstr}
+
+The \m{interp/topconstr.ml} file defines, among others, the
+\m{aconstr} and \m{constr\_expr} term representations. Also, it seems
+to deal with notations and their interpretations and
+matchings. \TODO{Explain more about aconstr and constr\_expr}.
+
+The most important type definitions are:
+
+\begin{code}
+type aconstr =
+  (** Part common to [glob_constr] and [cases_pattern] *)
+  | ARef of global_reference
+  | AVar of identifier
+  | AApp of aconstr * aconstr list
+  | AList of identifier * identifier * aconstr * aconstr * bool
+  (** Part only in [glob_constr] *)
+  | ALambda of name * aconstr * aconstr
+  | AProd of name * aconstr * aconstr
+  | ABinderList of identifier * identifier * aconstr * aconstr
+  | ALetIn of name * aconstr * aconstr
+  | ACases of case_style * aconstr option *
+      (aconstr * (name * (inductive * int * name list) option)) list *
+      (cases_pattern list * aconstr) list
+  | ALetTuple of name list * (name * aconstr option) * aconstr * aconstr
+  | AIf of aconstr * (name * aconstr option) * aconstr * aconstr
+  | ARec of fix_kind * identifier array *
+      (name * aconstr option * aconstr) list array * aconstr array *
+      aconstr array
+  | ASort of glob_sort
+  | AHole of Evd.hole_kind
+  | APatVar of patvar
+  | ACast of aconstr * aconstr cast_type
+
+type scope_name = string
+
+type notation_var_instance_type =
+  | NtnTypeConstr | NtnTypeConstrList | NtnTypeBinderList
+type notation_var_internalization_type =
+  | NtnInternTypeConstr | NtnInternTypeBinder | NtnInternTypeIdent
+type interpretation =
+    (identifier * (subscopes * notation_var_instance_type)) list * aconstr
+
+type notation = string
+type explicitation = ...
+type binder_kind = ...
+type abstraction_kind = ...
+type proj_flag = int option
+type prim_token = Numeral of Bigint.bigint | String of string
+
+type cases_pattern_expr =
+  | CPatAlias of loc * cases_pattern_expr * identifier
+  | CPatCstr of loc * reference * cases_pattern_expr list
+  | CPatCstrExpl of loc * reference * cases_pattern_expr list
+  | CPatAtom of loc * reference option
+  | CPatOr of loc * cases_pattern_expr list
+  | CPatNotation of loc * notation * cases_pattern_notation_substitution
+  | CPatPrim of loc * prim_token
+  | CPatRecord of Util.loc * (reference * cases_pattern_expr) list
+  | CPatDelimiters of loc * string * cases_pattern_expr
+
+and cases_pattern_notation_substitution =
+    cases_pattern_expr list *     (** for constr subterms *)
+    cases_pattern_expr list list  (** for recursive notations *)
+
+type constr_expr =
+  | CRef of reference
+  | CFix of loc * identifier located * fix_expr list
+  | CCoFix of loc * identifier located * cofix_expr list
+  | CArrow of loc * constr_expr * constr_expr
+  | CProdN of loc * (name located list * binder_kind * constr_expr) list * constr_expr
+  | CLambdaN of loc * (name located list * binder_kind * constr_expr) list * constr_expr
+  | CLetIn of loc * name located * constr_expr * constr_expr
+  | CAppExpl of loc * (proj_flag * reference) * constr_expr list
+  | CApp of loc * (proj_flag * constr_expr) *
+      (constr_expr * explicitation located option) list
+  | CRecord of loc * constr_expr option * (reference * constr_expr) list
+  | CCases of loc * case_style * constr_expr option *
+      (constr_expr * (name located option * constr_expr option)) list *
+      (loc * cases_pattern_expr list located list * constr_expr) list
+  | CLetTuple of loc * name located list * (name located option * constr_expr option) *
+      constr_expr * constr_expr
+  | CIf of loc * constr_expr * (name located option * constr_expr option)
+      * constr_expr * constr_expr
+  | CHole of loc * Evd.hole_kind option
+  | CPatVar of loc * (bool * patvar)
+  | CEvar of loc * existential_key * constr_expr list option
+  | CSort of loc * glob_sort
+  | CCast of loc * constr_expr * constr_expr cast_type
+  | CNotation of loc * notation * constr_notation_substitution
+  | CGeneralization of loc * binding_kind * abstraction_kind option * constr_expr
+  | CPrim of loc * prim_token
+  | CDelimiters of loc * string * constr_expr
+
+type with_declaration_ast = ...
+type module_ast = ...
+\end{code}
+
+\subsection{Genarg}
+
+The \m{interp/genarg.ml} module explains the path an entity can take
+from parsing to evalution. It also introduces a plethora of phantom
+types in order to differentiate between raw, globalized and
+internalized (interpreted?) expressions. It also seems to introduce
+some form of (safe?) dynamic typing.
+
+\subsection{Constrextern}
+
+The \m{interp/constrextern.ml} file contains a bunch of functions from
+the internal syntaxes (\m{glob\_constr}, \m{constr}) to the external
+syntax (\m{constr\_expr}) for printing. It also contains a lot of
+options that allow us to decide if we e.g. want to print implicit
+arguments.
+
+\subsection{Constrintern}
+
+The \m{interp/constrintern.ml} file deals with the translation from
+the front abstract syntax (\m{constr\_expr} to the internal syntaxes
+(\m{glob\_constr}, \m{constr}).
+
+\subsection{Coqlib}
+
+The \m{interp/coqlib.ml} file contains \textbf{global references} to
+the parts of the Coq standard library that are used in Ocaml files.
+The implementation seems instructive for handling the manual creation
+of global references.
+
+Some of the most useful parts seem to be:
+
+\begin{code}
+type message = string
+val find_reference : message -> string list -> string -> global_reference
+(** For tactics/commands requiring vernacular libraries *)
+val check_required_library : string list -> unit
+
+val logic_module : dir_path
+val logic_type_module : dir_path
+
+(* For Equality tactics *)
+type coq_sigma_data = {
+  proj1 : constr;
+  proj2 : constr;
+  elim  : constr;
+  intro : constr;
+  typ   : constr }
+
+val build_sigma_set : coq_sigma_data delayed
+val build_sigma_type : coq_sigma_data delayed
+val build_sigma : coq_sigma_data delayed
+\end{code}
+
+\section{Pretyping}
+
+\subsection{Glob\_term}
+
+In file \m{pretyping/glob_term} the \m{glob\_constr} intermediate term
+representation is defined. The file contains also definitions of
+the patterns that occur inside 'match ... with' expressions.
+
+Most important type definitions are:
+
+\begin{code}
+type cases_pattern =
+  | PatVar of loc * name
+  | PatCstr of loc * constructor * cases_pattern list * name 
+type patvar = identifier
+
+type quantified_hypothesis = AnonHyp of int | NamedHyp of identifier
+type 'a explicit_bindings = (loc * quantified_hypothesis * 'a) list
+type 'a bindings =
+  | ImplicitBindings of 'a list
+  | ExplicitBindings of 'a explicit_bindings
+  | NoBindings
+type 'a with_bindings = 'a * 'a bindings
+
+type 'a cast_type =
+  | CastConv of cast_kind * 'a
+  | CastCoerce (** Cast to a base type (eg, an underlying inductive type) *)
+
+type glob_constr =
+  | GRef of (loc * global_reference)
+  | GVar of (loc * identifier)
+  | GEvar of loc * existential_key * glob_constr list option
+  | GPatVar of loc * (bool * patvar) (** Used for patterns only *)
+  | GApp of loc * glob_constr * glob_constr list
+  | GLambda of loc * name * binding_kind *  glob_constr * glob_constr
+  | GProd of loc * name * binding_kind * glob_constr * glob_constr
+  | GLetIn of loc * name * glob_constr * glob_constr
+  | GCases of loc * case_style * glob_constr option * tomatch_tuples * cases_clauses
+      (** [GCases(l,style,r,tur,cc)] = "match 'tur' return 'r' with 'cc'" (in 
+	  [MatchStyle]) *)
+
+  | GLetTuple of loc * name list * (name * glob_constr option) *
+      glob_constr * glob_constr
+  | GIf of loc * glob_constr * (name * glob_constr option) * glob_constr * glob_constr
+  | GRec of loc * fix_kind * identifier array * glob_decl list array *
+      glob_constr array * glob_constr array
+  | GSort of loc * glob_sort
+  | GHole of (loc * Evd.hole_kind)
+  | GCast of loc * glob_constr * glob_constr cast_type
+
+and glob_decl = ...
+
+type 'a glob_red_flag = ...
+
+type 'a or_var = ArgArg of 'a | ArgVar of identifier located
+type occurrences_expr = bool * int or_var list
+type 'a with_occurrences = occurrences_expr * 'a
+
+type ('a,'b,'c) red_expr_gen = ...
+type ('a,'b,'c) may_eval =
+  | ConstrTerm of 'a
+  | ConstrEval of ('a,'b,'c) red_expr_gen * 'a
+  | ConstrContext of (loc * identifier) * 'a
+  | ConstrTypeOf of 'a
+\end{code}
+
+\section{Lib}
+
+\subsection{Util}
+
+The \m{lib/util.ml} file defines many kinds of types and values used
+throughout the whole source base. It contains utilities for error
+reporting, location handling, operations on pairs and triples, various
+functions on chars and strings (including unicode support), a bunch of
+list and array functionals, some combinators for streams, matrices and
+functions. Also there are integer sets and maps and pretty printing
+combinators. Finally, there is support for function memoization.
+
+There aren't many types defined in this file:
+
+\begin{code}
+type loc = Loc.t
+type 'a located = loc * 'a
+
+type 'a delayed = unit -> 'a
+
+type ('a,'b) union = Inl of 'a | Inr of 'b
+\end{code}
+
+\chapter{All about names and terms}
+
+\TODO{glob\_term, topconstr, term -- explain which representation is
+  used for what!}
+
+According to the comment in \m{pretyping/glob\_term.mli} the
+\m{glob\_term} type is an intermediate term representation and it is
+used for
+\begin{itemize}
+\item name resolution
+\item implicit argument placeholder insertion
+\item notation handling
+\end{itemize}
+while coercions, inference of implicit arguments and pattern-matching
+compilation are \textbf{not} done on this representation.
+
+We have the following identifier-like types:
+
+\begin{code}
+(* Kernel.Names *)
+type identifier
+type name
+type variable = identifier
+type module_ident
+type dir_path
+type label
+type mod_bound_id
+type module_path
+type kernel_name
+type constant
+type evaluable_global_reference
+(* Library.Libnames *)
+type global_reference
+type full_path
+type qualid
+type object_name
+type object_prefix
+type global_dir_reference
+type reference    
+\end{code}
+
+Some of the functions on identifiers are:
+
+\begin{code}
+(* Interp.Topconstr *)
+coerce_reference_to_id : reference -> identifier
+coerce_to_id : constr_expr -> identifier located
+coerce_to_name : constr_expr -> name located
+\end{code}
+
+\section{Terms (constructions)}
+
+We have the following type definitions:
+
+\begin{code}
+(* Pretyping.Glob_term *)
+type patvar
+type glob_constr
+(* Interp.Topconstr *)
+type aconstr
+type constr_expr
+type constr_pattern_expr
+(* Interp.Genarg *)
+type glob_constr_and_expr = glob_constr * constr_expr option
+type open_constr_expr = unit * constr_expr
+type open_glob_constr = unit * glob_constr_and_expr
+
+rawwit_constr  : (constr_expr,          rlevel) abstract_argument_type
+globwit_constr : (glob_constr_and_expr, glevel) abstract_argument_type
+wit_constr     : (constr,               tlevel) abstract_argument_type
+(* Kernel.Term *)
+type sorts
+type constr
+type types
+type kind_of_term
+(* Pretyping.Evd *)
+type open_constr = evar_map * constr
+\end{code}
+
+We have the following conversion functions:
+
+\begin{code}
+(* Interp.Topconstr *)
+glob_constr_of_aconstr : loc -> aconstr -> glob_constr
+(* Interp.Constrintern *)
+intern_constr : evar_map -> env -> constr_expr -> glob_constr
+interp_constr : evar_map -> env -> constr_expr -> constr
+interp_open_constr : evar_map -> env -> constr_expr -> evar_map * constr
+interp_casted_constr : evar_map -> env -> ?impls:internalization_env -> 
+                       constr_expr -> types -> constr
+(* Interp.Constrextern *)
+extern_glob_constr : Idset.t -> glob_constr -> constr_expr
+extern_constr : bool -> env -> constr -> constr_expr
+extern_reference : loc -> Idset.t -> global_reference -> reference
+\end{code}
+
+\section{Terms (tactics)}
+
+There are two types for tactic expressions: \m{raw\_tactic\_expr} and
+\m{glob\_tactic\_expr}. We have described them in other sections, see
+\TODO{provide back links}.
+
+\part{Tools and techniques}
+
+\chapter{Plugin creation}
+
+\TODO{Reference (discuss?) Matthieu Sozeau's Constructor example from
+  github.}
+
+\part{Reference manual}
+
+\chapter{The interfaces}
+
+This chapter could contain the listings of all of the original *.mli
+files. On the other hand, we already provide much of that information
+in the previous sections, so it might be a waste of space...
+
+\chapter{Index}
+
+This chapter could contain index(es) of all types, modules, values
+etc. A similar thing is provided by the documentation extracted from
+the .mli files by the ocamldoc tool, so maybe it's not very good idea
+to repeat those lists here. However, a list of some sort could still
+be useful.
+
+\chapter{References}
+
+This chapter will contain references to the relevant literature.
+
+\end{document}
