@@ -1,3 +1,6 @@
+# don't include the pdf file
+tex/devman.pdf
+
 *.glob
 *.d
 *.d.raw
@@ -16,6 +19,7 @@
 *.idx
 *.ilg
 *.toc
+*.out
 *.atoc
 *.comidx
 *.comind
