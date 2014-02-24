@@ -426,6 +426,49 @@ pr_raw_tactic    : env -> raw_tactic_expr -> std_ppcmds
 pr_glob_tactic : env -> glob_tactic_expr -> std_ppcmds
 \end{lstlisting}
 
+\newpage
+
+\section{TACTIC EXTEND}
+
+Coq enables the addition of new tactics by the \m{TACTIC\ EXTEND}
+mechanism implemented using Camlp5. For instance, in
+\m{tactic/extratactics.ml4} we have
+\begin{lstlisting}
+TACTIC EXTEND refine
+  [ "refine" casted_open_constr(c) ] -> [ refine c ]
+END
+\end{lstlisting}
+What happens here is that we define a parsing rule using the
+\m{casted\_open\_constr} parser (defined elsewhere). What actually
+happens to $c$ between the lines is at first rather mysterious. The
+\m{refine} function (from \m{tactics/refine.ml}) has type:
+\begin{lstlisting}
+refine : Evd.open_constr -> tactic
+\end{lstlisting}
+where
+\begin{lstlisting}
+type open_constr = evar_map * constr
+\end{lstlisting}
+
+\noindent
+but the \m{casted\_open\_contr} returns an expression of type
+
+\begin{lstlisting}
+type open_constr_expr = unit * constr_expr
+\end{lstlisting}
+The explanation lies in the following line from the
+\m{parsing/tacextend.ml4}:
+
+\begin{lstlisting}
+Tacinterp.intern_genarg Tacinterp.fully_empty_glob_sign
+  (Genarg.in_gen $rawwit$ v) ] >>
+\end{lstlisting}
+We see that behind the lines the \m{Tacinterp.intern\_genarg} function
+is called to translate from \m{open\_constr\_expr} to
+\m{glob\_constr}! The other part of the translation (from
+\m{glob\_constr} to \m{constr}) is done during tactic interpretation
+by the \m{Tacinterp.interp\_open\_constr} function.
+
 \chapter{Source code organization}
 
 \section{Toplevel directories}
