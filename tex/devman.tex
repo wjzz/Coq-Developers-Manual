@@ -262,6 +262,12 @@ Most of the behaviors described above can be configured or disabled,
 for details consult Merlin's github
 page.\footnote{\url{https://github.com/the-lambda-church/merlin/wiki/emacs-from-scratch}}
 
+\subsection{Troubleshooting}
+
+It seems that sometimes the Emacs mode stops working correctly
+(e.g. it marks certain identifiers as unbound). Many times it's
+possible to fix this by restarting the mode (by \verb|C-c r|).
+
 \part{The code base: structure, concepts and conventions}
 
 \chapter{General remarks and concepts}
@@ -272,8 +278,8 @@ imported by virtually all other modules.
 
 \section{Reading order for source files}
 
-Some files depend on as many as 20+ modules, while others are very
-often opened. 
+Some files depend on as many as 20+ modules, but there is a small set
+of core modules.
 
 In the \m{kernel} directory, \m{names.ml} and \m{term.ml} seem to be a
 good starting point.
@@ -341,6 +347,9 @@ printing. There are also some additional modules in the \m{parsing}
 directory for pretty printing different kinds of entities:
 
 \begin{itemize}
+\item \m{parsing/ppconstr.ml} for \m{constr\_expr}
+\item \m{parsing/printing.ml} for \m{glob\_expr}, \m{constr}, current
+  goal, etc
 \item \m{parsing/pptactic.ml} for tactics
 \item \m{parsing/ppvernac.ml} for Vernacular commands:
 \end{itemize}
@@ -348,19 +357,19 @@ directory for pretty printing different kinds of entities:
 \noindent
 \textbf{Example:} a function for pretty printing Vernacular commands:
 
-\begin{code}
-let show_pretty_vernac_expr : Vernacular.vernac_expr -> string = 
-  fun c -> Pp.string_of_ppcmds (Ppvernac.pr_vernac c)
-\end{code}
+\begin{lstlisting}
+let show_pretty_vernac_expr : Vernacular.vernac_expr -> unit = 
+  fun c -> Pp.ppnl (Ppvernac.pr_vernac c)
+\end{lstlisting}
 
 \noindent
 \textbf{Example:} pretty-printing of a raw tactic:
 
-\begin{code}
+\begin{lstlisting}
 let env = Global.env () in
 let tac_str = Pp.string_of_ppcmds (Pptactic.pr_raw_tactic env tac) in
 Printf.eprintf "debug: %s\n%!" tac_str
-\end{code}
+\end{lstlisting}
 
 \section{The proof engine and tactics}
 
@@ -426,12 +435,22 @@ pr_raw_tactic    : env -> raw_tactic_expr -> std_ppcmds
 pr_glob_tactic : env -> glob_tactic_expr -> std_ppcmds
 \end{lstlisting}
 
+To obtain the current proof state use the following functions
+(from \m{proofs/pfedit.ml}):
+\begin{lstlisting}
+get_current_context : unit -> Evd.evar_map * Environ.env
+current_proof_statement : unit -> identifier * goal_kind * types * declaration_hook
+
+\end{lstlisting}
+
+
+
 \newpage
 
 \section{TACTIC EXTEND}
 
 Coq enables the addition of new tactics by the \m{TACTIC\ EXTEND}
-mechanism implemented using Camlp5. For instance, in
+mechanism implemented using the Camlp4 preprocessor. For instance, in
 \m{tactic/extratactics.ml4} we have
 \begin{lstlisting}
 TACTIC EXTEND refine
@@ -468,6 +487,10 @@ is called to translate from \m{open\_constr\_expr} to
 \m{glob\_constr}! The other part of the translation (from
 \m{glob\_constr} to \m{constr}) is done during tactic interpretation
 by the \m{Tacinterp.interp\_open\_constr} function.
+
+Finally, the \verb|[refine c]| part is translated (by Camlp4) into a
+function of (approximately) the form \verb|fun c -> refine c|, so the
+actual evaluation is delayed.
 
 \chapter{Source code organization}
 
@@ -554,7 +577,7 @@ conversion functions are exported (e.g. \m{string\_of\_id}).
 
 The main name types defined in the file are:
 
-\begin{code}
+\begin{lstlisting}
 type identifier
 type name = Name of identifier | Anonymous
 type variable = identifier
@@ -574,7 +597,7 @@ type constant
 type mutual_inductive
 type inductive = mutual_inductive * int
 type constructor = inductive * int
-\end{code}
+\end{lstlisting}
 
 \noindent
 For more details and additional comments check \m{kernel/names.mli}. \\
@@ -583,7 +606,7 @@ For more details and additional comments check \m{kernel/names.mli}. \\
 \textbf{Bonus}: a function for building \textbf{constants} of form
 \m{Equations.DepElim}.\emph{name}:
 
-\begin{code}
+\begin{lstlisting}
 let build_lemma_constant : string -> constant =
   fun lemma_name ->
     let lemma_label = Names.mk_label lemma_name in
@@ -591,7 +614,7 @@ let build_lemma_constant : string -> constant =
     let inner_dir_path = List.map Names.id_of_string [ "DepElim" ; "Equations" ] in
     let module_path = Names.MPfile (Names.make_dirpath inner_dir_path ) in
     Names.make_con module_path dir_path lemma_label
-\end{code}
+\end{lstlisting}
 Note how we have to reverse the list when constructing \m{inner\_dir\_path}.
 
 \subsection{Term}
@@ -609,7 +632,7 @@ destructuring function (also called \m{kind\_of\_term}).
 
 The summary of most important types is as follows:
 
-\begin{code}
+\begin{lstlisting}
 type contents = Pos | Null
 type sorts =
   | Prop of contents       (** Prop and Set *)
@@ -661,7 +684,7 @@ type rel_declaration = name * constr option * types
 
 type arity = rel_context * sorts
 type values
-\end{code}
+\end{lstlisting}
 
 \newpage
 
@@ -674,7 +697,7 @@ names and provides functions for manipulating them.
 
 The most important types seem to be:
 
-\begin{code}
+\begin{lstlisting}
 type global_reference =
   | VarRef of variable
   | ConstRef of constant
@@ -696,7 +719,7 @@ type global_dir_reference = ...
 type reference =
   | Qualid of qualid located
   | Ident of identifier located
-\end{code}
+\end{lstlisting}
 
 \newpage
 
@@ -713,12 +736,12 @@ goal-manipulators.
 
 A few example tacticals:
 
-\begin{code}
+\begin{lstlisting}
 tclIDTAC  : tactic
 tclREPEAT : tactic -> tactic
 tclTRY    : tactic -> tactic
 tclFAIL   : int -> Pp.std_ppcmds -> tactic
-\end{code}
+\end{lstlisting}
 
 \subsection{Tacexpr}
 
@@ -765,7 +788,7 @@ of tactic expressions.
 Some of the operations defined in the file are for the internalization
 of the tactic expressions:
 
-\begin{code}
+\begin{lstlisting}
 intern_pure_tactic : glob_sign -> raw_tactic_expr -> glob_tactic_expr
 intern_constr : glob_sign -> constr_expr -> glob_constr_and_expr
 
@@ -777,7 +800,7 @@ add_tacdef :
 
 interp : raw_tactic_expr -> tactic
 eval_tactic : glob_tactic_expr -> tactic
-\end{code}
+\end{lstlisting}
 
 \noindent
 The \m{intern\_} functions seem to be only used locally, inside
@@ -803,7 +826,7 @@ matchings. \TODO{Explain more about aconstr and constr\_expr}.
 
 The most important type definitions are:
 
-\begin{code}
+\begin{lstlisting}
 type aconstr =
   (** Part common to [glob_constr] and [cases_pattern] *)
   | ARef of global_reference
@@ -890,7 +913,7 @@ type constr_expr =
 
 type with_declaration_ast = ...
 type module_ast = ...
-\end{code}
+\end{lstlisting}
 
 \subsection{Genarg}
 
@@ -923,7 +946,7 @@ of global references.
 
 Some of the most useful parts seem to be:
 
-\begin{code}
+\begin{lstlisting}
 type message = string
 find_reference : message -> string list -> string -> global_reference
 (** For tactics/commands requiring vernacular libraries *)
@@ -943,19 +966,19 @@ type coq_sigma_data = {
 build_sigma_set : coq_sigma_data delayed
 build_sigma_type : coq_sigma_data delayed
 build_sigma : coq_sigma_data delayed
-\end{code}
+\end{lstlisting}
 
 \section{Pretyping}
 
 \subsection{Glob\_term}
 
-In file \m{pretyping/glob_term} the \m{glob\_constr} intermediate term
+In file \m{pretyping/glob\_term} the \m{glob\_constr} intermediate term
 representation is defined. The file contains also definitions of
 the patterns that occur inside 'match ... with' expressions.
 
 Most important type definitions are:
 
-\begin{code}
+\begin{lstlisting}
 type cases_pattern =
   | PatVar of loc * name
   | PatCstr of loc * constructor * cases_pattern list * name 
@@ -1009,7 +1032,7 @@ type ('a,'b,'c) may_eval =
   | ConstrEval of ('a,'b,'c) red_expr_gen * 'a
   | ConstrContext of (loc * identifier) * 'a
   | ConstrTypeOf of 'a
-\end{code}
+\end{lstlisting}
 
 \section{Lib}
 
@@ -1025,14 +1048,14 @@ combinators. Finally, there is support for function memoization.
 
 There aren't many types defined in this file:
 
-\begin{code}
+\begin{lstlisting}
 type loc = Loc.t
 type 'a located = loc * 'a
 
 type 'a delayed = unit -> 'a
 
 type ('a,'b) union = Inl of 'a | Inr of 'b
-\end{code}
+\end{lstlisting}
 
 \chapter{All about names and terms}
 
@@ -1052,7 +1075,7 @@ compilation are \textbf{not} done on this representation.
 
 We have the following identifier-like types:
 
-\begin{code}
+\begin{lstlisting}
 (* Kernel.Names *)
 type identifier
 type name
@@ -1073,22 +1096,22 @@ type object_name
 type object_prefix
 type global_dir_reference
 type reference    
-\end{code}
+\end{lstlisting}
 
 Some of the functions on identifiers are:
 
-\begin{code}
+\begin{lstlisting}
 (* Interp.Topconstr *)
 coerce_reference_to_id : reference -> identifier
 coerce_to_id : constr_expr -> identifier located
 coerce_to_name : constr_expr -> name located
-\end{code}
+\end{lstlisting}
 
 \section{Terms (constructions)}
 
 We have the following type definitions:
 
-\begin{code}
+\begin{lstlisting}
 (* Pretyping.Glob_term *)
 type patvar
 type glob_constr
@@ -1101,9 +1124,9 @@ type glob_constr_and_expr = glob_constr * constr_expr option
 type open_constr_expr = unit * constr_expr
 type open_glob_constr = unit * glob_constr_and_expr
 
-rawwit_constr  : (constr_expr,          rlevel) abstract_argument_type
+rawwit_constr    : (constr_expr,            rlevel) abstract_argument_type
 globwit_constr : (glob_constr_and_expr, glevel) abstract_argument_type
-wit_constr     : (constr,               tlevel) abstract_argument_type
+wit_constr       : (constr,                 tlevel) abstract_argument_type
 (* Kernel.Term *)
 type sorts
 type constr
@@ -1111,11 +1134,11 @@ type types
 type kind_of_term
 (* Pretyping.Evd *)
 type open_constr = evar_map * constr
-\end{code}
+\end{lstlisting}
 
 We have the following conversion functions:
 
-\begin{code}
+\begin{lstlisting}
 (* Interp.Topconstr *)
 glob_constr_of_aconstr : loc -> aconstr -> glob_constr
 (* Interp.Constrintern *)
@@ -1128,7 +1151,23 @@ interp_casted_constr : evar_map -> env -> ?impls:internalization_env ->
 extern_glob_constr : Idset.t -> glob_constr -> constr_expr
 extern_constr : bool -> env -> constr -> constr_expr
 extern_reference : loc -> Idset.t -> global_reference -> reference
-\end{code}
+\end{lstlisting}
+
+\subsection{Pretty printing}
+
+If you need to pretty print some terms check the following functions:
+
+\begin{lstlisting}
+(* parsing/ppconstr.ml *)
+pr_constr_expr : constr_expr -> std_ppcmds
+
+(* parsing/printer.ml *)
+pr_constr_env          : env -> constr -> std_ppcmds
+pr_constr              : constr -> std_ppcmds
+
+pr_glob_constr_env       : env -> glob_constr -> std_ppcmds
+pr_glob_constr           : glob_constr -> std_ppcmds
+\end{lstlisting}
 
 \section{Terms (tactics)}
 
